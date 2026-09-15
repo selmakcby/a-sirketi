@@ -159,8 +159,10 @@ def _kostur(kok, takim):
     """bin/kos.py <takim> arka planda; kilit kos.py'de, çağıran bloklanmaz."""
     (Path(kok) / "sirket-log").mkdir(parents=True, exist_ok=True)
     log = open(Path(kok) / "sirket-log" / f"{takim}-tetik.log", "a")
+    # start_new_session: launchd, ana süreç (gunluk.py) bittiğinde işin bütün çocuklarını öldürür.
+    # Yeni oturum açılmazsa zamanlayıcıdan gelen koşu daha başlamadan ölür (sessizce, log bile yazmadan).
     subprocess.Popen([sys.executable, str(Path(kok) / "bin" / "kos.py"), takim],
-                     stdout=log, stderr=log, cwd=str(kok))
+                     stdout=log, stderr=log, cwd=str(kok), start_new_session=True)
 
 
 def _log_yaz(kok, satirlar, simdi):
