@@ -77,9 +77,9 @@ Komut komut ayrıntılı hâli: **[KURULUM.md](KURULUM.md)**
 3. `ANAYASA.md`'yi oku — beş madde, şirketin değişmez çerçevesi; istersen kendi maddelerini yaz
 4. Takımları tanı (`takimlar/*/takim.md`), sonra `python3 bin/agents_uret.py` ile
    `.claude/agents/<takim>.md` dosyalarını üret
-5. Döngüyü kapat: `kos.py x-icerik --kuru` → Telegram'a link → `telegram_oku.py --isle` →
-   `kos.py x-icerik` → `dagitici.py`
-6. Sürekli çalıştır: `bin/telegram_dinle.py` (olay tetiği) + `bin/zamanla.py --kur` (sabah/akşam)
+5. Döngüyü kapat: `python3 bin/kos.py x-icerik --kuru` → Telegram'a link →
+   `python3 bin/telegram_oku.py --isle` → `python3 bin/kos.py x-icerik` → `python3 bin/dagitici.py`
+6. Sürekli çalıştır: `python3 bin/telegram_dinle.py` (olay tetiği) + `python3 bin/zamanla.py --kur` (sabah/akşam)
 
 ## Anahtarlar (`.env`)
 
@@ -91,7 +91,7 @@ Komut komut ayrıntılı hâli: **[KURULUM.md](KURULUM.md)**
 | `TELEGRAM_CHAT_ID` | Yalnızca senin mesajların işlensin | aynı |
 | `APIFY_TOKEN` | YouTube videoları + yorumları | `youtube-analiz` koşmaz |
 | `FAL_KEY` | 3840×736 kapak görseli | pakete "kapak: sen ekleyeceksin" notu düşer, koşu devam eder |
-| `OPENAI_API_KEY` | Bekçi — ayrı model ailesi (ANAYASA §3) | yedek yol `claude -p --model haiku`; karar "bekçi aynı aileden — uyarı" notuyla kaydedilir |
+| `OPENAI_API_KEY` | Bekçi — ayrı model ailesi (ANAYASA §3) | **yoksa ya da geçersizse** (401/403, ağ yok) yedek yol `claude -p --model haiku`; karar "bekçi aynı aileden — uyarı" notuyla kaydedilir |
 | `KANAL` | İzlenecek YouTube kanalı | `@ornek-kanal` varsayılır |
 | `NVIDIA_API_KEY` | Ajanı Anthropic yerine NVIDIA'nın bedava modeliyle koşturmak ([docs/07](docs/07-farkli-model.md)) | hiçbir şey değişmez; her takım Anthropic'te koşar |
 | `NIM_MODEL` | Koşacak NIM modeli (tool-use desteklemeli) | `takim.md`'deki `model:` satırı kullanılır; o da yoksa `saglayici: nim` koşusu atlanır |
@@ -111,6 +111,7 @@ python3 bin/telegram_oku.py --chat-id-bul | --son 5 | --isle
 python3 bin/telegram_dinle.py [--bir-kez]    # olay tetiği: mesaj düştüğü an x-icerik koşar
 python3 bin/gunluk.py --sabah [--kuru] | --aksam    # sabah dağıtıcı + rapor, akşam denetim
 python3 bin/zamanla.py --kuru | --kur | --durum | --kaldir   # launchd tetikleri (macOS)
+#   saatli tetik: macOS launchd · Linux cron (docs/02-dongu.md) · Windows WSL — kos.py POSIX fcntl kilidi kullanır
 python3 bin/tweet_cek.py <x-linki>
 python3 bin/youtube_analiz_cek.py --son-7g --yorum 50
 python3 bin/kapak_uret.py "<başlık>" cikti/kapak.png

@@ -32,7 +32,7 @@ sirket-log/                dağıtıcı log'u, dinleyici log'u, sabah/akşam rap
 ```
 
 `.gitignore` şunları dışarıda tutar: `.env`, `.kos.lock`, `.kos-*.lock`, `__pycache__/`, `*.pyc`,
-`*.jsonl`, `sirket-log/`, `sirket/log/`, `takimlar/*/kosu/`, `takimlar/*/cikti/`,
+`*.jsonl`, `sirket-log/`, `takimlar/*/kosu/`, `takimlar/*/cikti/`,
 `takimlar/*/gelen/`, `takimlar/*/veri/`, `.obsidian/`, `*.canvas`, `.DS_Store`.
 Yani **koşu kayıtları ve çıktılar public repoya girmez** — örnek olarak elle konmuş bir tanesi
 [ornek-kosu/kosu-kaydi.md](ornek-kosu/kosu-kaydi.md) dosyasındadır.

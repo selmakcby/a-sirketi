@@ -8,7 +8,8 @@ anahtarları koymak, iskeleti tanımak ve döngüyü bir kez kendi gözünle kap
 - `python3` (3.9+) — betiklerin tamamı standart kütüphane, `pip install` yok
 - [Claude Code](https://claude.com/claude-code) CLI: `claude` komutu PATH'te olmalı — koşuları o çalıştırır
 - `gh` (GitHub CLI) — yalnızca kendi kopyanı GitHub'a açacaksan gerekir
-- macOS — `bin/zamanla.py` launchd kullanır (adım 6). Diğer adımlar Linux'ta da çalışır.
+- macOS — `bin/zamanla.py` launchd kullanır (adım 6). Diğer adımlar Linux'ta da çalışır;
+  Windows'ta WSL gerekir (`bin/kos.py` koşu kilidini POSIX `fcntl` ile kurar).
 
 ---
 
@@ -21,7 +22,7 @@ cp .env.example .env
 head -1 .gitignore     # ".env" — anahtar dosyası hiçbir zaman commit'e girmez
 ```
 
-`.env`'i kendi editöründe aç ve doldur. Altı anahtarın hiçbiri zorunlu değil ama boş kalan her
+`.env`'i kendi editöründe aç ve doldur. Sekiz anahtarın hiçbiri zorunlu değil ama boş kalan her
 anahtar bir takımı kapatır:
 
 | Anahtar | Nereden alınır | Boşsa |
@@ -30,8 +31,10 @@ anahtar bir takımı kapatır:
 | `TELEGRAM_CHAT_ID` | aşağıdaki `--chat-id-bul` | `x-icerik` koşmaz |
 | `APIFY_TOKEN` | apify.com → Settings → API tokens | `youtube-analiz` koşmaz |
 | `FAL_KEY` | fal.ai → Keys | paket "kapak: sen ekleyeceksin" notuyla çıkar |
-| `OPENAI_API_KEY` | platform.openai.com | bekçi Haiku'ya düşer, kararına "bekçi aynı aileden — uyarı" notu eklenir |
+| `OPENAI_API_KEY` | platform.openai.com | **yoksa ya da geçersizse** bekçi Haiku'ya düşer, kararına "bekçi aynı aileden — uyarı" notu eklenir |
 | `KANAL` | izlemek istediğin YouTube kanalı (`@kanal`) | `@ornek-kanal` varsayılır |
+| `NVIDIA_API_KEY` | build.nvidia.com → model kartı → Get API Key | hiçbir şey değişmez; her takım Anthropic'te koşar ([docs/07](docs/07-farkli-model.md)) |
+| `NIM_MODEL` | koşacak NIM modeli, tool-use desteklemeli | `takim.md`'deki `model:` satırı kullanılır; o da yoksa `saglayici: nim` koşusu atlanır |
 
 **Telegram botu 30 saniyede:** @BotFather → `/newbot` → bota bir ad ver → verdiği token'ı
 `TELEGRAM_BOT_TOKEN`'a yaz. Sonra kendi botuna herhangi bir mesaj at ve:
@@ -44,6 +47,9 @@ python3 bin/telegram_oku.py --chat-id-bul
 bu yüzden yalnız o chat id'den gelen mesajlar okunur.
 
 `APIFY_TOKEN`, `FAL_KEY` ve `OPENAI_API_KEY` opsiyoneldir — üçü boşken de döngü döner.
+
+> **`.env` her zaman kabuğu ezer.** Kabuğunda aynı adla eski bir değer duruyorsa bile koşu
+> `.env`'deki değeri kullanır — dosyaya ne yazdıysan onu görürsün (`bin/ayar.py` → `ortam_yukle`).
 
 ---
 
@@ -106,8 +112,13 @@ sızmaz; önsözdeki tek satıra dönüşür.
 Kendi takımını açmak istersen:
 
 ```bash
+python3 bin/agents_uret.py            # takim.md'yi her değiştirdiğinde koş
 bin/takim-olustur.sh <yeni-takim>     # iskeletten dört dosya
 ```
+
+> Yeni takım `skills: []` ile gelir. **`takim.md`'de `skills:` alanını doldur (en az bir
+> yetenek), yoksa testler kırmızı** — `tests/test_skills.py` her takımdan en az bir yetenek
+> bekler. Sonra `python3 bin/agents_uret.py` koş.
 
 Sonra `takim.md`'nin içini doldurursun. Bu üç dosya Claude Code'a yazdırıldı; kullanılan prompt'lar
 [prompts/P05a-x-icerik-takim.md](prompts/P05a-x-icerik-takim.md),
@@ -188,15 +199,19 @@ Ajanı Anthropic yerine NVIDIA'nın bedava modellerinden biriyle koşturmak iste
 Kendi kopyanı GitHub'a açacaksan, önce `.env` sızmadığından emin ol:
 
 ```bash
-git status                # .env LİSTEDE OLMAMALI
+git status                          # .env LİSTEDE OLMAMALI
+git restore takimlar/*/durum.json   # gerçek koşular durum.json'a yazar; kuyruğunu paylaşmak istemiyorsan geri al
 gh repo create <ad> --public --source=. --push
 ```
+
+Kuru koşular (`--kuru`) hiçbir dosyaya dokunmaz; `durum.json`'u kirleten şey gerçek koşulardır
+(`bin/kos.py <takim>`, `bin/telegram_oku.py --isle`, `bin/dagitici.py`).
 
 ---
 
 ## Sıfırdan kendin kurmak istersen
 
-Bu repo hazır alınmak zorunda değil: boş bir klasörde, Claude Code'a sırayla on iki prompt vererek
+Bu repo hazır alınmak zorunda değil: boş bir klasörde, Claude Code'a sırayla 15 prompt vererek
 aynı şirket sıfırdan kurulur — `CLAUDE.md`, `ANAYASA.md`, üç `takim.md`, ajan dosyaları, kuru koşu,
 gerçek koşu, dağıtıcı, GitHub, sürekli çalıştırma. Prompt'ların tamamı, olduğu gibi
 kopyalayıp yapıştırılacak hâlde:

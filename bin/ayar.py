@@ -60,9 +60,11 @@ def env_yukle(yol=None):
 
 
 def ortam_yukle(yol=None):
-    """`.env` içeriğini ortama ekler; zaten tanımlı değişkeni ezmez. Ortamın kopyasını döner."""
+    """`.env` içeriğini ortama yazar. **Proje `.env`'i kazanır**: kabukta aynı adla tanımlı bir
+    değişken varsa üzerine yazılır — izleyici `.env`'e ne yazdıysa onu görür. `.env`'de geçmeyen
+    değişkenlere dokunulmaz. Ortamın kopyasını döner."""
     for anahtar, deger in env_yukle(yol).items():
-        os.environ.setdefault(anahtar, deger)
+        os.environ[anahtar] = deger
     return dict(os.environ)
 
 
@@ -146,11 +148,19 @@ def durum_guncelle(takim, yama, kok=None):
     return yeni
 
 
-if __name__ == "__main__":
-    an = datetime.now().astimezone()
+def ozet(simdi=None):
+    """`python3 bin/ayar.py` çıktısı — üç satır. Önce `.env` yüklenir, kanal oradan okunur."""
+    ortam_yukle()
+    an = simdi or datetime.now().astimezone()
     durum = "içinde" if mesaide_mi(an) else "dışında"
-    print(f"{an:%Y-%m-%d %H:%M} — mesai {durum} ({MESAI_METNI}), sonraki açılış {sonraki_mesai(an):%a %H:%M}")
-    print(f"tavanlar: koşu {KOSU_BUTCESI_USD} USD / {KOSU_SURESI_SN // 60} dk · "
-          f"takım günde {GUNLUK_KOSU_TAVANI} koşu · arası {KOSULAR_ARASI_DK} dk · "
-          f"şirket günde {GUNLUK_MALIYET_TAVANI_USD} USD")
-    print(f"kanal: {kanal()} · .env: {'var' if ENV_DOSYASI.exists() else 'yok'}")
+    return "\n".join([
+        f"{an:%Y-%m-%d %H:%M} — mesai {durum} ({MESAI_METNI}), sonraki açılış {sonraki_mesai(an):%a %H:%M}",
+        f"tavanlar: koşu {KOSU_BUTCESI_USD} USD / {KOSU_SURESI_SN // 60} dk · "
+        f"takım günde {GUNLUK_KOSU_TAVANI} koşu · arası {KOSULAR_ARASI_DK} dk · "
+        f"şirket günde {GUNLUK_MALIYET_TAVANI_USD} USD",
+        f"kanal: {kanal()} · .env: {'var' if Path(ENV_DOSYASI).exists() else 'yok'}",
+    ])
+
+
+if __name__ == "__main__":
+    print(ozet())

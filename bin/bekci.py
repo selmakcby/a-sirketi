@@ -5,8 +5,10 @@
   1. **Ön kontrol (LLM yok).** Koşu kaydında API anahtarı, token, e-posta deseni var mı — desen
      eşleşirse karar doğrudan `red`. Bu katman anahtarsız da çalışır.
   2. **Denetim (LLM).** `OPENAI_API_KEY` varsa OpenAI (üreten Claude, denetleyen başka aile).
-     Anahtar yoksa yedek yol `claude -p --model haiku`: karar verilir ama kayda
-     **"bekçi aynı aileden — uyarı"** notu düşülür, çünkü aynı aile kendi hatasını aynı sebeple onaylar.
+     Anahtar **yoksa ya da geçersizse** (401/403) ve OpenAI'a ulaşılamazsa yedek yol
+     `claude -p --model haiku`: karar verilir ama kayda **"bekçi aynı aileden — uyarı"** notu
+     düşülür, çünkü aynı aile kendi hatasını aynı sebeple onaylar. Yedeğe düşüldüyse gerekçe
+     bunu da söyler: `openai 401 → haiku yedeği`.
 
 Modlar:
   Stop hook (stdin JSON): takım ve koşu dosyası `SIRKET_TAKIM` / `SIRKET_KOSU` ortamından okunur.
@@ -32,6 +34,8 @@ MAKS_RED = 2
 ZAMAN_ASIMI_SN = 60
 OPENAI_MODEL = "gpt-5-mini"
 AYNI_AILE_UYARISI = "bekçi aynı aileden — uyarı"
+# Bu gerekçelerle gelen "atlandi" kararı koşuyu denetimsiz bırakır → Haiku yedeğine düşülür.
+YEDEGE_DUSUREN = re.compile(r"^openai (401|403|ulaşılamadı)")
 
 ON_KONTROL = {
     "e-posta adresi": re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"),
@@ -107,8 +111,10 @@ def openai_sor(anahtar, istem):
     try:
         with urllib.request.urlopen(istek, timeout=ZAMAN_ASIMI_SN) as yanit:
             return yaniti_ayristir(json.loads(yanit.read().decode("utf-8")))
+    except urllib.error.HTTPError as exc:   # URLError'dan önce: HTTPError onun alt sınıfı
+        return {"karar": "atlandi", "gerekce": f"openai {exc.code}", "ihlal_edilen_kural": None}
     except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
-        return {"karar": "atlandi", "gerekce": f"bekçi ulaşılamadı: {type(exc).__name__}",
+        return {"karar": "atlandi", "gerekce": f"openai ulaşılamadı: {type(exc).__name__}",
                 "ihlal_edilen_kural": None}
 
 
@@ -133,6 +139,20 @@ def haiku_sor(istem):
         return {"karar": "atlandi", "gerekce": "yedek bekçi JSON döndürmedi", "ihlal_edilen_kural": None}
     karar = yaniti_ayristir({"output": [{"content": [{"text": metin[basi:sonu + 1]}]}]})
     return {**karar, "gerekce": f"[{AYNI_AILE_UYARISI}] " + karar["gerekce"]}
+
+
+def llm_karari(anahtar, istem):
+    """Denetim katmanı: OpenAI varsa o, anahtar yok/geçersiz/ulaşılamaz ise Haiku yedeği.
+
+    Geçersiz anahtar koşuyu sessizce 'atlandi' bırakmaz — bekçi yine karar verir, gerekçe
+    hangi yoldan geçildiğini söyler."""
+    if not anahtar:
+        return haiku_sor(istem)
+    karar = openai_sor(anahtar, istem)
+    if karar["karar"] != "atlandi" or not YEDEGE_DUSUREN.search(karar.get("gerekce") or ""):
+        return karar
+    yedek = haiku_sor(istem)
+    return {**yedek, "gerekce": f"{karar['gerekce']} → haiku yedeği · {yedek['gerekce']}"}
 
 
 def gecersiz_gerekceyi_ayikla(karar):
@@ -178,8 +198,7 @@ def denetle(kok, takim, kosu):
     else:
         istem = _istem(_oku(kok / "ANAYASA.md"),
                        _oku(kok / "takimlar" / takim / "kurallar.md", "(kural dosyası yok)"), metin)
-        anahtar = os.environ.get("OPENAI_API_KEY")
-        karar = gecersiz_gerekceyi_ayikla(openai_sor(anahtar, istem) if anahtar else haiku_sor(istem))
+        karar = gecersiz_gerekceyi_ayikla(llm_karari(os.environ.get("OPENAI_API_KEY"), istem))
     _kaydet(kok, takim, kosu, karar)
     return karar
 

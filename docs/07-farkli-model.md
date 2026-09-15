@@ -90,6 +90,13 @@ model: meta/llama-3.3-70b-instruct
 `saglayici` yazılmamışsa varsayılan `anthropic`'tir — mevcut takımların hiçbiri etkilenmez.
 `model:` satırını `sonnet` bırakırsan `.env`'deki `NIM_MODEL` kullanılır.
 
+```bash
+python3 bin/agents_uret.py     # takim.md'yi değiştirdikten SONRA koş
+```
+
+`takim.md` tek kaynaktır; Claude Code'un okuduğu `.claude/agents/<takim>.md` ondan üretilir.
+Üretmeyi unutursan `python3 bin/agents_uret.py --check` 1 döner ve testler kırmızı olur.
+
 ### 5 · Koştur
 
 ```bash
@@ -109,7 +116,8 @@ belli olur.
 
 ### 6 · Geri dön
 
-`saglayici: nim` satırını sil (ya da `anthropic` yap). Başka hiçbir şeye dokunmaya gerek yok.
+`saglayici: nim` satırını sil (ya da `anthropic` yap), sonra `python3 bin/agents_uret.py` koş.
+Başka hiçbir şeye dokunmaya gerek yok.
 
 ---
 
@@ -163,12 +171,11 @@ Bu yolu açmak birkaç şeyi değiştirir. Hiçbiri gizli değil, hepsi senin ka
 ## Windows / Linux
 
 - **Linux:** her şey aynı çalışır. `uvx` yoksa: `curl -LsSf https://astral.sh/uv/install.sh | sh`.
-- **Windows:** `bin/model_proxy.py` ve `bin/kos.py` çalışır (ortam değişkenleri Python
-  tarafından alt sürece verilir, kabuk `export`'u gerekmez). `uv` için
-  `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`. Kabuktan elle değişken
-  koyacaksan `set` değil PowerShell'de `$env:ANTHROPIC_BASE_URL = "http://127.0.0.1:4000"`.
-  Şirketin saatli tetiği (`bin/zamanla.py`) macOS launchd'ye bağlıdır; Windows'ta Görev
-  Zamanlayıcı ile elle kurulur — model köprüsüyle ilgisi yok.
+- **Windows:** WSL ya da Linux gerekir. `bin/kos.py` koşu kilidini POSIX `fcntl` ile kurar
+  (`import fcntl`), bu modül Windows Python'unda yoktur — betik doğrudan çalışmaz. WSL içinde
+  her şey Linux gibi davranır. `uv` için `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`.
+  Şirketin saatli tetiği (`bin/zamanla.py`) macOS launchd'ye bağlıdır; Linux'ta cron, WSL'de
+  yine cron ile kurulur — model köprüsüyle ilgisi yok.
 
 ---
 

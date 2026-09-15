@@ -651,7 +651,7 @@ class ZamanlayiciTesti(unittest.TestCase):
     def test_plist_yazilabilir_bicimde(self):
         for tetik in zamanla.TETIKLER:
             ham = plistlib.dumps(zamanla.plist_icerigi(tetik))
-            self.assertEqual(plistlib.loads(ham)["Label"], f"com.a-sirketi.{tetik['ad']}")
+            self.assertEqual(plistlib.loads(ham)["Label"], zamanla.etiket(tetik["ad"]))
 
 
 if __name__ == "__main__":

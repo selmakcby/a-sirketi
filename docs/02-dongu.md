@@ -226,8 +226,15 @@ python3 bin/zamanla.py --kaldir   # tetikleri kaldır (rapor dosyalarına dokunm
 
 | Etiket | Saat | Komut |
 |---|---|---|
-| `com.a-sirketi.sabah` | `MESAI_BASLANGIC` → 09:00 | `bin/gunluk.py --sabah` |
-| `com.a-sirketi.aksam` | `MESAI_BITIS - 1` → 22:00 | `bin/gunluk.py --aksam` |
+| `com.a-sirketi.<klasor>-<hash6>.sabah` | `MESAI_BASLANGIC` → 09:00 | `bin/gunluk.py --sabah` |
+| `com.a-sirketi.<klasor>-<hash6>.aksam` | `MESAI_BITIS - 1` → 22:00 | `bin/gunluk.py --aksam` |
+
+Etiket köke bağlıdır (`<klasor>-<hash6>`: klasör adı + tam yolun sha1 kısaltması): iki klon
+aynı launchd kaydını ele geçirmez. `--durum` plist'in çalıştırdığı betiğin **bu köke** ait
+olduğunu doğrular; başka köke bakıyorsa "başka kök için yüklü" der. Eski sürümün köksüz
+`com.a-sirketi.sabah` etiketi hâlâ yüklüyse `--durum` bunu "eski etiket, `--kur` ile yenile"
+diye raporlar — kendiliğinden kaldırmaz, çift tetik olmasın diye elle indirirsin:
+`launchctl bootout gui/$(id -u)/com.a-sirketi.sabah`.
 
 plist ayrıntıları: `StartCalendarInterval` ile saat/dakika; `RunAtLoad: False` — kurulum anında
 koşu başlatmaz; `ProcessType: Background`; `StandardOutPath`/`StandardErrorPath`

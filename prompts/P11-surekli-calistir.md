@@ -9,8 +9,9 @@
 > **Repoyu klonladıysan:** aynı prompt geçerli. Saatleri değiştirmek istersen tek yer
 > [`bin/ayar.py`](../bin/ayar.py) (`MESAI_BASLANGIC`, `MESAI_BITIS`); zamanlayıcı oradan okur.
 
-**Beklenen çıktı:** `~/Library/LaunchAgents/com.a-sirketi.sabah.plist` ve `com.a-sirketi.aksam.plist`
-yüklü; `--durum` ikisini ve bir sonraki koşu saatini gösterir. Dinleyici açıkken bota link attığın an
+**Beklenen çıktı:** `~/Library/LaunchAgents/` altında iki plist yüklü — etiket köke bağlıdır:
+`com.a-sirketi.<klasor>-<hash6>.sabah` ve `…aksam` (iki klon aynı kaydı ele geçirmesin diye).
+`--durum` ikisini ve bir sonraki koşu saatini gösterir. Dinleyici açıkken bota link attığın an
 `x-icerik` koşar; sabah 09:00 dağıtıcı kuyruğu işler ve rapor yazar, akşam 22:00 günü denetler.
 Raporlar `sirket-log/rapor/` altındadır, git'e girmez.
 

@@ -6,6 +6,8 @@ Kullanım:
   python3 bin/telegram_oku.py --son 5         # son mesajları bas (durum değişmez)
   python3 bin/telegram_oku.py --isle          # yeni mesajları takimlar/x-icerik/gelen/ altına yaz
 
+Çıkış kodları: 0 tamam · 1 anahtar eksik · 2 token geçersiz (Telegram 401/403) · 3 ulaşılamadı (ağ).
+
 Anahtarlar `.env`'de: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID. Yalnızca kendi chat id'nden gelen
 mesajlar işlenir — bot'a başkası yazarsa görmezden gelinir.
 
@@ -29,6 +31,17 @@ import ayar  # noqa: E402
 TAKIM = "x-icerik"
 URL = re.compile(r"https?://\S+")
 
+TOKEN_KODU = 2      # 401/403 — token geçersiz, tekrar denemenin anlamı yok
+AG_KODU = 3         # ağ/sunucu — sonra tekrar denenebilir
+
+
+class TelegramHatasi(Exception):
+    """Telegram API'si reddetti ya da ulaşılamadı. `kod` çıkış kodudur (2 token, 3 ağ)."""
+
+    def __init__(self, mesaj, kod):
+        super().__init__(mesaj)
+        self.kod = kod
+
 
 def _api(token, yontem, **parametreler):
     sorgu = urllib.parse.urlencode({k: v for k, v in parametreler.items() if v is not None})
@@ -38,9 +51,14 @@ def _api(token, yontem, **parametreler):
         # long-poll: Telegram `timeout` saniye bekletir, sokete üstüne pay bırakılır
         with urllib.request.urlopen(istek, timeout=20 + int(parametreler.get("timeout") or 0)) as yanit:
             veri = json.loads(yanit.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:      # URLError'dan önce: HTTPError onun alt sınıfı
+        if exc.code in (401, 403):
+            raise TelegramHatasi(
+                f"telegram: token geçersiz ({exc.code}) — `.env` içindeki TELEGRAM_BOT_TOKEN'ı "
+                "@BotFather'dan aldığın değerle karşılaştır", TOKEN_KODU) from exc
+        raise TelegramHatasi(f"telegram: sunucu hatası ({exc.code})", AG_KODU) from exc
     except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
-        print(f"telegram: ulaşılamadı — {type(exc).__name__}", file=sys.stderr)
-        return []
+        raise TelegramHatasi(f"telegram: ulaşılamadı — {type(exc).__name__}", AG_KODU) from exc
     return veri.get("result", []) if veri.get("ok") else []
 
 
@@ -74,7 +92,8 @@ def mesajlari_ayikla(guncellemeler, chat_id):
 def isle(kok, guncellemeler, chat_id):
     """Yeni mesajları `gelen/` altına yazar, offset'i durum.json'a işler. Yazılan yolları döner."""
     durum = ayar.durum_oku(TAKIM, kok)
-    son = int((durum.get("sayaclar") or {}).get("telegram_son_update", 0))
+    onceki = int((durum.get("sayaclar") or {}).get("telegram_son_update", 0))
+    son = onceki
     gelen = Path(kok) / "takimlar" / TAKIM / "gelen"
     gelen.mkdir(parents=True, exist_ok=True)
     yazilan = []
@@ -85,19 +104,19 @@ def isle(kok, guncellemeler, chat_id):
         yol.write_text(json.dumps(mesaj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         yazilan.append(yol)
         son = mesaj["update_id"]
-    ayar.durum_guncelle(TAKIM, {"sayaclar": {**(durum.get("sayaclar") or {}),
-                                             "telegram_son_update": son}}, kok)
+    if son != onceki:      # yeni mesaj yoksa durum.json'a dokunma (boşuna git diff'i olmasın)
+        ayar.durum_guncelle(TAKIM, {"sayaclar": {**(durum.get("sayaclar") or {}),
+                                                 "telegram_son_update": son}}, kok)
     return yazilan
 
 
-def main(argv):
-    ayar.ortam_yukle()
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    if not token:
-        print("TELEGRAM_BOT_TOKEN yok (.env)", file=sys.stderr)
-        return 1
+def _calistir(argv, token):
     if "--chat-id-bul" in argv:
-        print(json.dumps({"chat_idleri": chat_idleri(guncellemeleri_cek(token))}))
+        idler = chat_idleri(guncellemeleri_cek(token))
+        print(json.dumps({"chat_idleri": idler}))
+        if not idler:
+            print("chat id bulunamadı — telefonundan bota bir mesaj at, sonra bu komutu tekrar koş "
+                  "(Telegram yalnız son 24 saatin güncellemelerini verir)", file=sys.stderr)
         return 0
     ham_id = os.environ.get("TELEGRAM_CHAT_ID")
     if not ham_id:
@@ -113,6 +132,19 @@ def main(argv):
     print(json.dumps(mesajlari_ayikla(guncellemeleri_cek(token), chat_id)[-adet:],
                      ensure_ascii=False, indent=2))
     return 0
+
+
+def main(argv):
+    ayar.ortam_yukle()
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not token:
+        print("TELEGRAM_BOT_TOKEN yok (.env)", file=sys.stderr)
+        return 1
+    try:
+        return _calistir(argv, token)
+    except TelegramHatasi as exc:
+        print(exc, file=sys.stderr)
+        return exc.kod
 
 
 if __name__ == "__main__":

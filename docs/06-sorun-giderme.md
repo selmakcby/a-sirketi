@@ -71,9 +71,11 @@ python3 bin/ayar.py       # son satır ".env: var" demeli
 python3 bin/kos.py youtube-analiz --kuru   # "gerekli anahtarlar:" satırına bak
 ```
 
-Dikkat: `ayar.ortam_yukle()` `os.environ.setdefault` kullanır — **zaten tanımlı bir ortam
-değişkenini ezmez.** Kabuğunuzda eski/boş bir `APIFY_TOKEN` varsa `.env`'deki değer
-uygulanmaz. `unset APIFY_TOKEN` deyip tekrar deneyin.
+Dikkat: `ayar.ortam_yukle()` **`.env`'i kabuğun üzerine yazar; `.env` her zaman kabuğu ezer** —
+proje dosyası kazanır.
+Kabuğunuzda eski bir `APIFY_TOKEN` olsa bile koşu `.env`'deki değeri kullanır; dosyaya ne
+yazdıysanız onu görürsünüz. Tersi de geçerli: `.env`'de satırı silmek kabuktaki eski değeri
+geri getirir — anahtarı gerçekten kaldırmak istiyorsanız `unset APIFY_TOKEN` de deyin.
 
 ---
 
@@ -114,9 +116,11 @@ pratikte yalnız `kos.py` dışında başlatılan oturumlarda çıkar.
 TimeoutExpired` · `yedek bekçi JSON döndürmedi`. Akşam raporunda:
 `🟡 <takim> — bekçi denetleyemedi: …`
 
-**Sebep.** `atlandi` **"kabul" değildir** — denetim yapılamadı demektir. Sebepleri: internet
-yok, `OPENAI_API_KEY` geçersiz, OpenAI 60 sn zaman aşımı, yedek yolda `claude` bulunamadı ya da
-150 sn'de bitmedi, yahut model şemaya uymayan bir yanıt döndürdü.
+**Sebep.** `atlandi` **"kabul" değildir** — denetim yapılamadı demektir. `OPENAI_API_KEY` geçersizse
+(401/403) ya da OpenAI'a ulaşılamıyorsa bekçi **kendiliğinden Haiku yedeğine düşer** ve gerekçeye
+`openai 401 → haiku yedeği` yazar; yani bu durumda karar `atlandi` kalmaz. Geriye kalan sebepler:
+OpenAI 60 sn zaman aşımı, yedek yolda `claude` bulunamadı ya da 150 sn'de bitmedi, yahut model
+şemaya uymayan bir yanıt döndürdü.
 
 **Çözüm.** Elle tekrar denetleyin ve gerekçeyi okuyun:
 
@@ -126,7 +130,7 @@ python3 bin/bekci.py --dogrudan x-icerik takimlar/x-icerik/kosu/2026-09-11-1716.
 
 - `OPENAI_API_KEY` varsa doğruluğunu sınayın; farklı bir model denemek için
   `BEKCI_MODEL` ortam değişkeni (varsayılan `gpt-5-mini`).
-- Anahtar yoksa yedek yol `claude -p --model haiku`'dur; `claude` PATH'te mi bakın.
+- Anahtar yoksa **ya da geçersizse** yedek yol `claude -p --model haiku`'dur; `claude` PATH'te mi bakın.
 - Karar `atlandi` kaldığı sürece o koşunun çıktısı **denetlenmemiştir**; kabul edilmiş gibi
   davranmayın.
 
@@ -151,8 +155,20 @@ python3 bin/telegram_oku.py --chat-id-bul
 ```
 
 `--chat-id-bul` offset'i **ilerletmez**, o yüzden istediğiniz kadar çalıştırabilirsiniz.
-Boş liste dönüyorsa bota hiç mesaj atılmamış ya da mesajlar daha önce `--isle` ile onaylanmış
-demektir; bota yeni bir mesaj atıp tekrar deneyin.
+Boş liste dönüyorsa komut bunu kendisi söyler ("bota bir mesaj at, sonra tekrar koş"): bota hiç
+mesaj atılmamış ya da mesajlar daha önce `--isle` ile onaylanmış demektir.
+
+**Token geçersizse** komut artık sessiz kalmaz. Çıkış kodları:
+
+| Kod | Anlamı |
+|---|---|
+| 0 | tamam |
+| 1 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` yok (`.env`) |
+| 2 | `telegram: token geçersiz (401)` — @BotFather'daki değerle karşılaştırın |
+| 3 | `telegram: ulaşılamadı` — ağ ya da Telegram sunucusu |
+
+`telegram_dinle.py` bu hatalarda **ölmez**: turu atlar, `sirket-log/telegram-dinle.log`'a yazar,
+bir sonraki turda tekrar dener.
 
 ---
 
@@ -239,6 +255,14 @@ dosyanın başında yazar: üretken modeller Türkçe metni ve noktalama işaret
 **Sebep.** `launchctl bootstrap gui/<uid> <plist>` başarısız oldu: plist zaten yüklü, izin
 sorunu, ya da `launchctl` çağrılamadı (`launchctl çağrılamadı: FileNotFoundError` — macOS
 dışındasınız).
+
+Etiket **köke bağlıdır**: `com.a-sirketi.<klasor>-<hash6>.<tetik>`. İki klon aynı kaydı ele
+geçirmez; `--durum` plist'in çalıştırdığı betiğin bu köke ait olduğunu doğrular ve değilse
+`· başka kök için yüklü: <yol>` der. Eski sürümün köksüz `com.a-sirketi.sabah` /
+`com.a-sirketi.aksam` etiketi hâlâ yüklüyse `--durum` bunu `⚠ eski etiket … — --kur ile yenile`
+satırıyla bildirir. `--kur` yeni etiketi kurar, eskiyi **kaldırmaz** (başka bir kökün tetiği
+olabilir); çift tetik istemiyorsanız elle indirin:
+`launchctl bootout gui/$(id -u)/com.a-sirketi.sabah`.
 
 **Çözüm.**
 

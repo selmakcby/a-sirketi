@@ -17,6 +17,8 @@ Koşu önde yapılır: bir koşu sürerken düşen mesajlar Telegram'da bekler, 
 üst üste koşu olmaz (kilit ayrıca `bin/kos.py`'de).
 
 TELEGRAM_BOT_TOKEN yoksa sessizce çıkar (0). Token hiçbir log satırına yazılmaz.
+Telegram token'ı reddederse (401/403) ya da ağ yoksa dinleyici ölmez: turu atlar, loga yazar,
+bir sonraki turda tekrar dener.
 """
 import collections
 import json
@@ -190,6 +192,8 @@ def main(argv):
         while True:
             try:
                 tur(KOK, token, chat_id, kuyruk)
+            except telegram_oku.TelegramHatasi as exc:   # token geçersiz ya da ağ yok
+                _log(KOK, f"{exc} — bu tur atlandı")
             except Exception as exc:    # daemon hiçbir turda ölmez, ama sessiz de kalmaz
                 _log(KOK, f"tur hatası: {type(exc).__name__}: {exc} — bu tur atlandı")
             if bir_kez:

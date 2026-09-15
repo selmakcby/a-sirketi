@@ -14,6 +14,7 @@ Kullanım:
   python3 bin/zamanla.py --durum    # yüklü mü, ne zaman koşacak
   python3 bin/zamanla.py --kaldir   # tetikleri kaldır (rapor dosyalarına dokunmaz)
 """
+import hashlib
 import os
 import plistlib
 import shutil
@@ -28,6 +29,11 @@ KOK = ayar.KOK
 AJANLAR = Path.home() / "Library" / "LaunchAgents"
 ON_EK = "com.a-sirketi"
 LOG = "sirket-log/zamanlayici.log"
+
+# Etiket köke bağlıdır: iki klon aynı launchd kaydını ele geçirmesin (klasör adı + yol hash'i).
+# `com.a-sirketi.<klasor>-<hash6>.<tetik>`. Eski sürüm köksüz `com.a-sirketi.<tetik>` kullanırdı;
+# `--durum` onu görürse "eski etiket" diye raporlar, kendiliğinden kaldırmaz.
+IMZA_UZUNLUGU = 6
 
 # Saatler ayar.py'den türer; ikinci bir yerde sayı yazmaz.
 TETIKLER = [
@@ -48,19 +54,41 @@ def _yol_degeri():
     return ":".join(dict.fromkeys(dizinler))
 
 
-def etiket(ad):
+def kok_imzasi(kok=None):
+    """Kökü tek kelimeyle tanıtan imza: `<klasor>-<hash6>`. Aynı adlı iki klon çakışmaz."""
+    yol = Path(kok or KOK).resolve()
+    ozet = hashlib.sha1(str(yol).encode("utf-8")).hexdigest()[:IMZA_UZUNLUGU]
+    return f"{yol.name}-{ozet}"
+
+
+def etiket(ad, kok=None):
+    return f"{ON_EK}.{kok_imzasi(kok)}.{ad}"
+
+
+def eski_etiket(ad):
+    """Köksüz eski etiket — yalnızca teşhis için; `--kur`/`--kaldir` buna dokunmaz."""
     return f"{ON_EK}.{ad}"
 
 
-def plist_yolu(ad):
-    return AJANLAR / f"{etiket(ad)}.plist"
+def plist_yolu(ad, kok=None):
+    return AJANLAR / f"{etiket(ad, kok)}.plist"
+
+
+def _plist_programi(yol):
+    """plist'in çalıştırdığı betiğin yolu; dosya yoksa/bozuksa None."""
+    try:
+        with open(yol, "rb") as dosya:
+            argv = plistlib.load(dosya).get("ProgramArguments") or []
+    except (OSError, ValueError, plistlib.InvalidFileException):
+        return None
+    return argv[1] if len(argv) > 1 else None
 
 
 def plist_icerigi(tetik, kok=None, python=None):
     """Tek bir tetiğin plist sözlüğü. RunAtLoad yok — kurulum anında koşu başlatmaz."""
     kok = Path(kok or KOK)
     return {
-        "Label": etiket(tetik["ad"]),
+        "Label": etiket(tetik["ad"], kok),
         "ProgramArguments": [python or sys.executable, str(kok / "bin" / "gunluk.py"), tetik["bayrak"]],
         "WorkingDirectory": str(kok),
         "EnvironmentVariables": {"PATH": _yol_degeri()},
@@ -91,21 +119,21 @@ def kur(kok=None):
     (Path(kok or KOK) / LOG).parent.mkdir(parents=True, exist_ok=True)
     sonuclar = []
     for tetik in TETIKLER:
-        yol = plist_yolu(tetik["ad"])
+        yol = plist_yolu(tetik["ad"], kok)
         with open(yol, "wb") as dosya:
             plistlib.dump(plist_icerigi(tetik, kok), dosya)
-        _launchctl("bootout", f"{_hedef()}/{etiket(tetik['ad'])}")   # varsa önce indir
+        _launchctl("bootout", f"{_hedef()}/{etiket(tetik['ad'], kok)}")   # varsa önce indir
         kod, cikti = _launchctl("bootstrap", _hedef(), str(yol))
         sonuclar.append({"ad": tetik["ad"], "yol": yol,
                          "mesaj": "yüklendi" if kod == 0 else f"yüklenemedi: {cikti or kod}"})
     return sonuclar
 
 
-def kaldir():
+def kaldir(kok=None):
     sonuclar = []
     for tetik in TETIKLER:
-        kod, cikti = _launchctl("bootout", f"{_hedef()}/{etiket(tetik['ad'])}")
-        yol = plist_yolu(tetik["ad"])
+        kod, cikti = _launchctl("bootout", f"{_hedef()}/{etiket(tetik['ad'], kok)}")
+        yol = plist_yolu(tetik["ad"], kok)
         vardi = yol.exists()
         yol.unlink(missing_ok=True)
         sonuclar.append({"ad": tetik["ad"], "yol": yol,
@@ -113,12 +141,35 @@ def kaldir():
     return sonuclar
 
 
-def durum():
+def durum(kok=None):
+    """Her tetik için: bu köke ait mi, yüklü mü, eski etiketle yüklü bir kalıntı var mı."""
+    kok = Path(kok or KOK)
+    bin_dizini = str((kok / "bin").resolve())
     sonuclar = []
     for tetik in TETIKLER:
-        kod, _ = _launchctl("print", f"{_hedef()}/{etiket(tetik['ad'])}")
-        sonuclar.append({**tetik, "yuklu": kod == 0, "plist": plist_yolu(tetik["ad"]).exists()})
+        yol = plist_yolu(tetik["ad"], kok)
+        program = _plist_programi(yol)
+        # sembolik bağ farkı yanıltmasın: iki taraf da çözülerek karşılaştırılır
+        baska = program if (program and not str(Path(program).resolve()).startswith(bin_dizini)) else None
+        kod, _ = _launchctl("print", f"{_hedef()}/{etiket(tetik['ad'], kok)}")
+        eski = eski_etiket(tetik["ad"])
+        eski_kod, _ = _launchctl("print", f"{_hedef()}/{eski}")
+        eski_yol = AJANLAR / f"{eski}.plist"
+        sonuclar.append({**tetik, "etiket": etiket(tetik["ad"], kok),
+                         "yuklu": kod == 0 and baska is None, "plist": yol.exists(),
+                         "baska_kok": baska, "eski_etiket": eski,
+                         "eski_yuklu": eski_kod == 0 or eski_yol.exists(),
+                         "eski_kok": _plist_programi(eski_yol)})
     return sonuclar
+
+
+def _eski_etiket_uyarisi():
+    """Köksüz eski etiket hâlâ duruyorsa söyle — kaldırmak insanın kararı."""
+    for tetik in TETIKLER:
+        eski = eski_etiket(tetik["ad"])
+        if (AJANLAR / f"{eski}.plist").exists() or _launchctl("print", f"{_hedef()}/{eski}")[0] == 0:
+            print(f"⚠ eski etiket {eski} hâlâ yüklü — çift tetik olmasın diye kaldır: "
+                  f"launchctl bootout {_hedef()}/{eski}")
 
 
 def main(argv):
@@ -132,15 +183,27 @@ def main(argv):
     if "--kur" in argv:
         for s in kur():
             print(f"{s['ad']:<6} {s['mesaj']} — {s['yol']}")
+        _eski_etiket_uyarisi()
         return 0
     if "--kaldir" in argv:
         for s in kaldir():
             print(f"{s['ad']:<6} {s['mesaj']}")
+        _eski_etiket_uyarisi()
         return 0
     if "--durum" in argv:
+        print(f"etiket: {ON_EK}.{kok_imzasi()}.<tetik>  ({KOK})")
         for s in durum():
-            isaret = "✓ yüklü" if s["yuklu"] else ("· plist var, yüklü değil" if s["plist"] else "· kurulu değil")
-            print(f"{s['ad']:<6} her gün {s['saat']:02d}:{s['dakika']:02d}  {isaret:<26} {s['ne']}")
+            if s["baska_kok"]:
+                isaret = f"· başka kök için yüklü: {s['baska_kok']}"
+            elif s["yuklu"]:
+                isaret = "✓ yüklü"
+            else:
+                isaret = "· plist var, yüklü değil" if s["plist"] else "· kurulu değil"
+            print(f"{s['ad']:<6} her gün {s['saat']:02d}:{s['dakika']:02d}  {isaret:<40} {s['ne']}")
+            if s["eski_yuklu"]:
+                nere = f" (→ {s['eski_kok']})" if s["eski_kok"] else ""
+                print(f"       ⚠ eski etiket {s['eski_etiket']} yüklü{nere} — "
+                      f"`python3 bin/zamanla.py --kur` ile yenile")
         return 0
     print(__doc__)
     return 2
