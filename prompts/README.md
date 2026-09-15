@@ -32,6 +32,7 @@ ve belge dosyalarını (`CLAUDE.md`, `ANAYASA.md`, `takim.md`) yazar.
 | P9 | [P09-dagitici.md](P09-dagitici.md) | dağıtıcı — zincir | çalıştır |
 | P10 | [P10-github.md](P10-github.md) | commit ve GitHub | kendi kopyan için |
 | P11 | [P11-surekli-calistir.md](P11-surekli-calistir.md) | dinleyici + sabah/akşam zamanlayıcı — döngü sen yokken döner | çalıştır |
+| P12 | [P12-farkli-model.md](P12-farkli-model.md) | farklı model bağla (NVIDIA, bedava) | isteğe bağlı — çalıştır |
 
 ## Prompt yazmak yerine hazır dosyayı almak
 

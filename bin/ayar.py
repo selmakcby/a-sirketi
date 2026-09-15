@@ -27,6 +27,13 @@ GUNLUK_KOSU_TAVANI = 4          # takım başına gün
 GUNLUK_MALIYET_TAVANI_USD = 10.0  # tüm şirket, gün
 ES_ZAMANLI_TAVAN = 2            # dağıtıcının aynı anda başlattığı takım sayısı
 
+# --- model köprüsü (docs/07-farkli-model.md) -------------------------------
+# Varsayılan sağlayıcı Anthropic'tir. `takim.md`'de `saglayici: nim` yazan takım
+# `bin/model_proxy.py`'nin ayağa kaldırdığı yerel LiteLLM proxy'sine yönlendirilir.
+NIM_PROXY_URL = "http://127.0.0.1:4000"   # yalnız yerel — dışarı açık değil
+NIM_YEREL_TOKEN = "sk-a-sirketi-yerel"    # yerel proxy'nin bearer token'ı (gizli değil)
+LITELLM_SURUM = "1.101.0"                 # uvx ile sabitlenir; bkz. model_proxy.YASAKLI_SURUMLER
+
 ENV_SATIRI = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$")
 
 

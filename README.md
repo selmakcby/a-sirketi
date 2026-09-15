@@ -93,6 +93,8 @@ Komut komut ayrıntılı hâli: **[KURULUM.md](KURULUM.md)**
 | `FAL_KEY` | 3840×736 kapak görseli | pakete "kapak: sen ekleyeceksin" notu düşer, koşu devam eder |
 | `OPENAI_API_KEY` | Bekçi — ayrı model ailesi (ANAYASA §3) | yedek yol `claude -p --model haiku`; karar "bekçi aynı aileden — uyarı" notuyla kaydedilir |
 | `KANAL` | İzlenecek YouTube kanalı | `@ornek-kanal` varsayılır |
+| `NVIDIA_API_KEY` | Ajanı Anthropic yerine NVIDIA'nın bedava modeliyle koşturmak ([docs/07](docs/07-farkli-model.md)) | hiçbir şey değişmez; her takım Anthropic'te koşar |
+| `NIM_MODEL` | Koşacak NIM modeli (tool-use desteklemeli) | `takim.md`'deki `model:` satırı kullanılır; o da yoksa `saglayici: nim` koşusu atlanır |
 
 ## Komutlar
 
@@ -149,8 +151,9 @@ python3 -m unittest discover -s tests        # reponun kendi testleri
 | [docs/04-yetenekler.md](docs/04-yetenekler.md) | `skills/` — ne, neden, nasıl bağlanır |
 | [docs/05-yeni-takim.md](docs/05-yeni-takim.md) | Sıfırdan yeni takım açmak |
 | [docs/06-sorun-giderme.md](docs/06-sorun-giderme.md) | Sık çıkan hatalar ve okunacak dosya |
+| [docs/07-farkli-model.md](docs/07-farkli-model.md) | Ajanı Anthropic yerine NVIDIA'nın bedava modeliyle koşturmak (+ güvenlik notu) |
 | [docs/ornek-kosu/](docs/ornek-kosu/) | Gerçek bir koşunun kaydı ve çıktısı |
-| [prompts/](prompts/) | Şirketi sıfırdan kurmak için Claude Code'a sırayla verilen prompt'lar (P0–P11) |
+| [prompts/](prompts/) | Şirketi sıfırdan kurmak için Claude Code'a sırayla verilen prompt'lar (P0–P12) |
 | [ANAYASA.md](ANAYASA.md) · [CLAUDE.md](CLAUDE.md) | Beş madde · projenin kimliği |
 
 ## Lisans

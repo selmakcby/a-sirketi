@@ -71,6 +71,51 @@ def istem(takim, fm, kosu, zaman, kok=None):
         f"{ayar.KOSU_SURESI_SN // 60} dk. Bitince tek paragraf özet döndür.\n\n{govde}")
 
 
+NIM_PROXY_VARSAYILAN = ayar.NIM_PROXY_URL
+# Bu adlar Anthropic takma adıdır, bir NIM model kimliği değildir: nim yolunda
+# `model:` bunlardan biriyse gerçek model `.env`'deki NIM_MODEL'den okunur.
+ANTHROPIC_TAKMA_ADLARI = ("sonnet", "opus", "haiku", "default", "sonnet[1m]")
+
+
+def _nim_modeli(fm, temel):
+    """NIM model kimliği: takim.md'deki `model:` kazanır, yoksa `.env`'deki NIM_MODEL."""
+    model = str(fm.get("model") or "").strip()
+    if model and model.lower() not in ANTHROPIC_TAKMA_ADLARI:
+        return model
+    return str(temel.get("NIM_MODEL") or "").strip()
+
+
+def saglayici_ortami(fm, temel):
+    """(alt sürecin ortamı, kullanılacak model) — `takim.md`'deki `saglayici:` alanına göre.
+
+    `anthropic` (varsayılan): ortam AYNEN döner, hiçbir ANTHROPIC_* değişkenine dokunulmaz.
+    `nim`: Claude Code yerel LiteLLM proxy'sine yönlendirilir (bkz. docs/07-farkli-model.md).
+    Eksik anahtar/model ValueError ile, Türkçe ve ne yapılacağını söyleyerek bildirilir.
+    """
+    saglayici = str(fm.get("saglayici") or "anthropic").strip().lower()
+    if saglayici == "anthropic":
+        return dict(temel), str(fm.get("model") or "sonnet")
+    if saglayici != "nim":
+        raise ValueError(f"bilinmeyen saglayici: {saglayici} — takim.md'de `anthropic` ya da `nim` olmalı")
+    if not str(temel.get("NVIDIA_API_KEY") or "").strip():
+        raise ValueError("saglayici: nim için NVIDIA_API_KEY gerekli — build.nvidia.com'dan "
+                         "ücretsiz anahtar al ve `.env`'e yaz (docs/07-farkli-model.md)")
+    model = _nim_modeli(fm, temel)
+    if not model:
+        raise ValueError("saglayici: nim için model gerekli — `.env`'de NIM_MODEL ya da takim.md'de "
+                         "`model:` (ör. meta/llama-3.3-70b-instruct). Model tool-use desteklemeli.")
+    proxy = str(temel.get("NIM_PROXY_URL") or "").strip() or ayar.NIM_PROXY_URL
+    # ANTHROPIC_API_KEY kalırsa Claude Code Anthropic'e düşebilir; nim koşusu sessizce ücretli olur.
+    ortam = {k: v for k, v in temel.items() if k != "ANTHROPIC_API_KEY"}
+    return {**ortam,
+            "ANTHROPIC_BASE_URL": proxy,
+            "ANTHROPIC_AUTH_TOKEN": str(temel.get("LITELLM_MASTER_KEY") or "").strip() or ayar.NIM_YEREL_TOKEN,
+            # oturum başlığı gibi arka plan işleri de proxy'de tanımlı modele gitsin
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL": model,
+            # NIM modelleri Anthropic'in adaptive thinking alanını anlamaz
+            "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING": "1"}, model
+
+
 def claude_komutu(metin, araclar, butce_usd, model="sonnet"):
     return ["claude", "-p", metin, "--output-format", "json", "--model", model,
             "--max-budget-usd", str(butce_usd), "--allowedTools", ",".join(araclar),
@@ -89,7 +134,7 @@ def sonucu_cozumle(stdout):
 
 def _ustbilgi(takim, zaman, fm):
     return (f"# Koşu — {takim} — {zaman}\n\n"
-            f"- model: {fm.get('model', 'sonnet')} · bütçe: {fm.get('butce_usd', ayar.KOSU_BUTCESI_USD)} USD\n\n")
+            f"- sağlayıcı: {fm.get('saglayici', 'anthropic')} · model: {fm.get('model', 'sonnet')} · bütçe: {fm.get('butce_usd', ayar.KOSU_BUTCESI_USD)} USD\n\n")
 
 
 def _atla(takim, kosu, zaman, fm, sebep):
@@ -101,10 +146,11 @@ def _atla(takim, kosu, zaman, fm, sebep):
 
 def _claude_kos(metin, fm, takim, kosu):
     """claude -p çağrısı. Süre/başlatma hataları da sözlük olarak döner, istisna fırlatmaz."""
-    ortam = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}  # iç içe koşu engeli
-    ortam.update({"SIRKET_TAKIM": takim, "SIRKET_KOSU": str(kosu)})
+    temel = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}  # iç içe koşu engeli
+    ortam, model = saglayici_ortami(fm, temel)
+    ortam = {**ortam, "SIRKET_TAKIM": takim, "SIRKET_KOSU": str(kosu)}
     araclar = fm.get("tools") or ["Read", "Write", "Glob", "Grep"]
-    komut = claude_komutu(metin, araclar, fm.get("butce_usd", ayar.KOSU_BUTCESI_USD), fm.get("model", "sonnet"))
+    komut = claude_komutu(metin, araclar, fm.get("butce_usd", ayar.KOSU_BUTCESI_USD), model)
     try:
         sonuc = subprocess.run(komut, cwd=str(KOK), capture_output=True, text=True,
                                timeout=ayar.KOSU_SURESI_SN, env=ortam)
@@ -137,11 +183,18 @@ def _sonuc_belirle(cozum, takim, kosu):
 
 def _kuru_bas(takim, fm, kosu, zaman, metin):
     print(f"kuru koşu — {takim} — {zaman}")
-    print(f"  model: {fm.get('model', 'sonnet')} · bütçe: {fm.get('butce_usd', ayar.KOSU_BUTCESI_USD)} USD "
+    print(f"  sağlayıcı: {fm.get('saglayici', 'anthropic')} · model: {fm.get('model', 'sonnet')} · bütçe: {fm.get('butce_usd', ayar.KOSU_BUTCESI_USD)} USD "
           f"· süre: {ayar.KOSU_SURESI_SN // 60} dk")
     print(f"  araçlar: {', '.join(fm.get('tools') or ['Read', 'Write', 'Glob', 'Grep'])}")
     print(f"  koşu kaydı yazılacak dosya: {kosu.relative_to(KOK)}")
     print(f"  gerekli anahtarlar: {', '.join(fm.get('gerekli_anahtarlar') or []) or '(yok)'}")
+    if str(fm.get("saglayici") or "anthropic").lower() == "nim":
+        try:
+            # kuru koşu ortamı DEĞİŞTİRMEZ: .env ile mevcut ortam yerinde birleştirilir
+            ortam, model = saglayici_ortami(fm, {**ayar.env_yukle(), **os.environ})
+            print(f"  köprü: {ortam['ANTHROPIC_BASE_URL']} → NVIDIA NIM · model: {model}")
+        except ValueError as exc:
+            print(f"  köprü: KURULU DEĞİL — {exc}")
     print(f"  yetenekler: {', '.join(fm.get('skills') or []) or '(yok)'}")
     print(f"  kimlik (istemin ilk satırı): {metin.splitlines()[0]}")
     print(f"  istem ({len(metin)} karakter), ilk 400:\n    " + metin[:400].replace("\n", "\n    "))
@@ -171,7 +224,11 @@ def kos(takim, kuru=False, zorla=False):
         _atla(takim, kosu, zaman, fm, "eksik anahtar: " + ", ".join(eksik))
         return 0
     kosu.parent.mkdir(parents=True, exist_ok=True)
-    cozum = _claude_kos(metin, fm, takim, kosu)
+    try:
+        cozum = _claude_kos(metin, fm, takim, kosu)
+    except ValueError as exc:  # sağlayıcı ayarı eksik/yanlış — koşu başlatılmaz
+        _atla(takim, kosu, zaman, fm, str(exc))
+        return 0
     if not kosu.exists():
         kosu.write_text(_ustbilgi(takim, zaman, fm) + "**Ajan koşu kaydı yazmadı.**\n\n" + cozum["metin"],
                         encoding="utf-8")

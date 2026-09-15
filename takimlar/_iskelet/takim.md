@@ -1,6 +1,7 @@
 ---
 name: TAKIM
 description: TAKIM takımı — (tek cümle: ne girer, ne çıkar)
+saglayici: anthropic
 model: sonnet
 tools: [Read, Write, Glob, Grep]
 gerekli_anahtarlar: []

@@ -183,6 +183,8 @@ Raporlar `sirket-log/rapor/YYYY-MM-DD-{sabah,aksam}.md` altına yazılır ve dı
 Bu adımı Claude Code'a yaptırmak istersen: [prompts/P11-surekli-calistir.md](prompts/P11-surekli-calistir.md).
 Bilgisayar o saatte kapalıysa launchd kaçan işi açılışta koşturur. Kaldırmak: `python3 bin/zamanla.py --kaldir`.
 
+Ajanı Anthropic yerine NVIDIA'nın bedava modellerinden biriyle koşturmak istersen (iki satır, geri dönüşü tek satır): [docs/07-farkli-model.md](docs/07-farkli-model.md) · prompt hâli [prompts/P12-farkli-model.md](prompts/P12-farkli-model.md).
+
 Kendi kopyanı GitHub'a açacaksan, önce `.env` sızmadığından emin ol:
 
 ```bash
