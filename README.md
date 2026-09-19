@@ -12,8 +12,10 @@ Bu bir iskelettir, bir ürün değil. Klonla, `.env`'i doldur, kendi takımları
 
 ## Videolar
 
-- Bölüm 1 — [Şirketimde 13 Ajan Var, Maaş Ödemiyorum: Sıfırdan Kurulum](https://www.youtube.com/watch?v=7XhX8P0ebEU)
-- Bölüm 2 — [Bir Ajan Nasıl Uyanır ve Ne Kadar Harcar? Şirketimin İçi](https://youtu.be/OhnKe-L5-lU) — bu repodaki dosyalar tek tek açılıyor, YouTube ajanı Telegram'dan çalıştırılıyor, 40 cent'lik hata kamerada teşhis ediliyor.
+Her bölümün kodu kendi etiketinde durur; `main` en güncel hâl.
+
+- Bölüm 1 — [Şirketimde 13 Ajan Var, Maaş Ödemiyorum: Sıfırdan Kurulum](https://www.youtube.com/watch?v=7XhX8P0ebEU) · kod o videodaki haliyle: [`bolum-1`](https://github.com/selmakcby/a-sirketi/tree/bolum-1)
+- Bölüm 2 — [Bir Ajan Nasıl Uyanır ve Ne Kadar Harcar? Şirketimin İçi](https://youtu.be/OhnKe-L5-lU) · kod: [`bolum-2`](https://github.com/selmakcby/a-sirketi/tree/bolum-2) — bu repodaki dosyalar tek tek açılıyor, YouTube ajanı Telegram'dan çalıştırılıyor, 40 cent'lik hata kamerada teşhis ediliyor.
 
 ## Üç takım
 
