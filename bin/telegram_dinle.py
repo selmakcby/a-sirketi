@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Telegram dinleyici — bota mesaj düştüğü anda `x-icerik` koşar. Zamanlayıcı yok.
+"""Telegram dinleyici — bota mesaj düştüğü anda ilgili takım koşar. Zamanlayıcı yok.
 
 Kullanım:
   python3 bin/telegram_dinle.py            # sonsuz long-poll döngüsü
@@ -12,7 +12,11 @@ ANAYASA §4 tek yerde: sayılar `bin/ayar.py`'de, mesai/tavan kararı `dagitici.
 Dinleyici kendi başına saat ya da tavan bilmez, sorar. Mesai dışında mesaj `gelen/` altına yazılır
 ve kuyruğa `bekliyor` düşer ama koşu başlamaz — sabah dağıtıcı alır.
 
-Linksiz mesaj (ör. `/start`, düz metin) yalnızca loglanır, hiçbir şey koşmaz.
+Yönlendirme `takim_sec`'te, tek yerde: içinde "youtube" geçen her mesaj (link olsun olmasın)
+`youtube-analiz`'e, "youtube" geçmeyen ama link taşıyan mesaj `x-icerik`'e gider. İkisi de
+değilse (ör. `/start`, düz metin) mesaj yalnızca loglanır, hiçbir şey koşmaz.
+Gelen kutusu ve Telegram offset'i `takimlar/x-icerik/` altında kalır — Telegram'ın tek bir
+offset'i var, takımlara bölünmez.
 Koşu önde yapılır: bir koşu sürerken düşen mesajlar Telegram'da bekler, sonra sırayla işlenir —
 üst üste koşu olmaz (kilit ayrıca `bin/kos.py`'de).
 
@@ -23,6 +27,7 @@ bir sonraki turda tekrar dener.
 import collections
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -35,7 +40,10 @@ import dagitici  # noqa: E402
 import telegram_oku  # noqa: E402
 
 KOK = ayar.KOK
-TAKIM = telegram_oku.TAKIM          # x-icerik — Telegram'ın düştüğü takım
+TAKIM = telegram_oku.TAKIM          # x-icerik — linkli mesajların varsayılan takımı
+YT_TAKIM = "youtube-analiz"         # içinde "youtube" geçen mesajın takımı
+YOUTUBE = re.compile(r"youtube", re.IGNORECASE)
+KUYRUK_ONEKI = {TAKIM: "x", YT_TAKIM: "yt"}   # kuyruk id öneki; "x-" dağıtıcının zincir desenidir
 BEKLEME_SN = 15                     # getUpdates long-poll süresi
 TUR_ARASI_SN = 2                    # iki tur arası nefes (ağ hatasında sıkı döngüyü keser)
 NOT_SINIRI = 200                    # kuyruğa yazılan dış metnin karakter tavanı
@@ -73,12 +81,27 @@ def _temiz(metin, sinir=NOT_SINIRI):
     return tek_satir[:sinir] + ("…" if len(tek_satir) > sinir else "")
 
 
-def kuyruk_maddesi(mesaj):
-    """(id, not) — id takım sözleşmesindeki `x-<update_id>`; dağıtıcının zinciri bu deseni bekler."""
+def takim_sec(mesaj):
+    """Mesajı hangi takım karşılar? 'youtube' geçen her mesaj youtube-analiz'e (link olsun
+    olmasın), link taşıyan geri kalanı x-icerik'e. İkisi de değilse None — kuyruğa yazılmaz.
+
+    Dış metin ANAYASA §2 gereği veridir, talimat değil: yalnız desene bakılır, yorumlanmaz."""
+    if YOUTUBE.search(mesaj.get("metin") or ""):
+        return YT_TAKIM
+    return TAKIM if mesaj.get("linkler") else None
+
+
+def kuyruk_maddesi(mesaj, takim):
+    """(id, not) — id `<önek>-<update_id>`. x-icerik'inki dağıtıcının zincir desenine uyar;
+    `yt-` ile başlayan madde zincire takılmaz (bkz. `dagitici.ZINCIR`)."""
+    parcalar = [f"telegram {str(mesaj.get('zaman') or '')[:16]}"]
     link = _temiz((mesaj.get("linkler") or [""])[0], LINK_SINIRI)
+    if link:
+        parcalar.append(link)
     notu = _temiz(mesaj.get("not"))
-    metin = f"telegram {str(mesaj.get('zaman') or '')[:16]} · {link}"
-    return f"x-{mesaj['update_id']}", metin + (f" · not: {notu}" if notu else "")
+    if notu:
+        parcalar.append(f"not: {notu}")
+    return f"{KUYRUK_ONEKI[takim]}-{mesaj['update_id']}", " · ".join(parcalar)
 
 
 def gelen_mesajlar(yollar):
@@ -106,38 +129,41 @@ def bildir(haber, metin):
         print(f"bildirim gitmedi: {type(exc).__name__}", file=sys.stderr)
 
 
-def sonuc_ozeti(kok, id_):
+def sonuc_ozeti(kok, takim, id_):
     """Koşu bitince kuyruk maddesinin durumu + bekçi kararı — tek satırlık özet."""
-    durum = ayar.durum_oku(TAKIM, kok)
+    durum = ayar.durum_oku(takim, kok)
     madde = next((m for m in (durum.get("kuyruk") or []) if m.get("id") == id_), {})
     bekci = (durum.get("bekci") or {}).get("son_karar") or "kayıt yok"
     return f"{madde.get('durum', '?')} · {_temiz(madde.get('not') or '-', 300)} · bekçi: {bekci}"
 
 
-def kostur(kok):
-    """Önce `kos.py x-icerik` (bitene kadar beklenir), sonra `dagitici.py` — zincir twitter-icerik'e geçsin."""
+def kostur(kok, takim):
+    """Önce `kos.py <takim>` (bitene kadar beklenir), sonra `dagitici.py`.
+
+    Dağıtıcı her koşudan sonra çağrılır: zinciri o kurar (ANAYASA §5), tavanları o bilir (§4)."""
     bin_dizini = Path(kok) / "bin"
-    for komut in ([sys.executable, str(bin_dizini / "kos.py"), TAKIM],
+    for komut in ([sys.executable, str(bin_dizini / "kos.py"), takim],
                   [sys.executable, str(bin_dizini / "dagitici.py")]):
         subprocess.run(komut, cwd=str(kok), check=False)
 
 
 def isle_mesaj(kok, mesaj, simdi=None, haber=None):
-    """Tek mesaj: link varsa kuyruğa yaz, §4 izin verirse hemen koş. (etiket, sebep) döner.
+    """Tek mesaj: takımını seç, kuyruğa yaz, §4 izin verirse hemen koş. (etiket, sebep) döner.
 
-    etiket: linksiz | kostu | bekletildi. `haber` verilirse her adım patrona Telegram'dan bildirilir."""
-    if not mesaj.get("linkler"):
-        return "linksiz", "link yok — koşu başlatılmadı"
-    id_, notu = kuyruk_maddesi(mesaj)
-    dagitici.kuyruga_yaz(kok, TAKIM, id_, notu)   # aynı id ikinci kez iş açmaz
-    kossun, sebep = dagitici.tetik_karari(kok, TAKIM, simdi or datetime.now().astimezone())
+    etiket: ilgisiz | kostu | bekletildi. `haber` verilirse her adım patrona Telegram'dan bildirilir."""
+    takim = takim_sec(mesaj)
+    if not takim:
+        return "ilgisiz", "link yok, 'youtube' da geçmiyor — koşu başlatılmadı"
+    id_, notu = kuyruk_maddesi(mesaj, takim)
+    dagitici.kuyruga_yaz(kok, takim, id_, notu)   # aynı id ikinci kez iş açmaz
+    kossun, sebep = dagitici.tetik_karari(kok, takim, simdi or datetime.now().astimezone())
     if not kossun:
-        bildir(haber, f"⏸ link alındı · kuyruk {id_}\nkoşmadı: {sebep}")
-        return "bekletildi", f"kuyruk {id_}; {sebep}"
-    bildir(haber, f"▶️ link alındı · kuyruk {id_}\nx-icerik koşuyor…")
-    kostur(kok)
-    bildir(haber, f"✅ koşu bitti · {id_}\n{sonuc_ozeti(kok, id_)}")
-    return "kostu", f"kuyruk {id_}; {sebep}"
+        bildir(haber, f"⏸ istek alındı · {takim} kuyruğu {id_}\nkoşmadı: {sebep}")
+        return "bekletildi", f"{takim}/{id_}; {sebep}"
+    bildir(haber, f"▶️ istek alındı · {takim} kuyruğu {id_}\n{takim} koşuyor…")
+    kostur(kok, takim)
+    bildir(haber, f"✅ koşu bitti · {id_}\n{sonuc_ozeti(kok, takim, id_)}")
+    return "kostu", f"{takim}/{id_}; {sebep}"
 
 
 def tur(kok, token, chat_id, kuyruk, bekleme=BEKLEME_SN):
@@ -147,7 +173,8 @@ def tur(kok, token, chat_id, kuyruk, bekleme=BEKLEME_SN):
                                                     bekleme=bekleme)
     for mesaj in gelen_mesajlar(telegram_oku.isle(kok, guncellemeler, chat_id)):
         kuyruk.append(mesaj)
-        _log(kok, f"mesaj {mesaj.get('update_id')} · {len(mesaj.get('linkler') or [])} link · sıraya alındı")
+        _log(kok, f"mesaj {mesaj.get('update_id')} · {len(mesaj.get('linkler') or [])} link "
+                  f"· → {takim_sec(mesaj) or 'ilgisiz'} · sıraya alındı")
     islenen = 0
     while kuyruk:                       # sırayla, tek tek — koşu bitmeden sıradakine geçilmez
         mesaj = kuyruk.popleft()
@@ -186,7 +213,7 @@ def main(argv):
                                             text=metin, disable_web_page_preview="true")
     bir_kez = "--bir-kez" in argv
     kuyruk = collections.deque()
-    _log(KOK, f"dinleyici açıldı · takım {TAKIM} · long-poll {BEKLEME_SN} sn"
+    _log(KOK, f"dinleyici açıldı · takımlar {TAKIM}, {YT_TAKIM} · long-poll {BEKLEME_SN} sn"
               + (" · tek tur" if bir_kez else ""))
     try:
         while True:

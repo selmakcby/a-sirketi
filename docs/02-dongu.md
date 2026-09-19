@@ -33,7 +33,18 @@ son halkasıdır. [03-bekci.md](03-bekci.md)
 
 ### 1 · Olay tetiği — `bin/telegram_dinle.py`
 
-Asıl yol, `x-icerik` için. Zamanlayıcı yok: bota mesaj düştüğü an koşu başlar.
+Asıl yol. Zamanlayıcı yok: bota mesaj düştüğü an koşu başlar.
+
+Dinleyici tek takıma bağlı değil; gelen mesajı `takim_sec()` yönlendirir. Telegram'a
+**"youtube analizi yap"** yazmanız yeter: içinde "youtube" geçen her mesaj (büyük/küçük harf
+farketmez, link olsun olmasın) `youtube-analiz` takımına gider ve kuyruğuna `yt-<update_id>`
+maddesi düşer — takım pazartesiyi beklemez, mesai içindeyseniz hemen koşar ve veriyi
+tazeliğine bakmadan yeniden çeker. "youtube" geçmeyen ama link taşıyan mesaj eskisi gibi
+`x-icerik`'e, `x-<update_id>` id'siyle gider. İkisi de değilse (`/start`, düz selam) mesaj
+yalnızca loglanır, hiçbir şey koşmaz. `yt-` öneki bilerek seçildi: dağıtıcının zincir deseni
+`^x-(.+)$` olduğu için youtube isteği `twitter-icerik`'i tetiklemez. Gelen kutusu
+(`gelen/*.json`) ve Telegram offset'i hangi takım koşarsa koşsun `takimlar/x-icerik/` altında
+kalır — Telegram'ın tek bir offset'i vardır, takımlara bölünmez.
 
 ```bash
 python3 bin/telegram_dinle.py            # sonsuz long-poll döngüsü
@@ -51,14 +62,17 @@ Bir tur şöyle işler (`tur()`):
 4. Her mesaj yerel bir `deque`'ye alınır, **sırayla, tek tek** işlenir — koşu bitmeden
    sıradakine geçilmez. Böylece üst üste koşu olmaz (ayrıca `kos.py`'de dosya kilidi var).
 5. `isle_mesaj()`:
-   - Mesajda link yoksa → `linksiz`, yalnızca loglanır, hiçbir şey koşmaz.
-   - Link varsa → kuyruğa `x-<update_id>` maddesi yazılır (`durum: bekliyor`), notu
-     `telegram <tarih> · <link> · not: <patronun notu>` biçiminde, dış metin tek satıra
-     indirilip **200 karaktere** kırpılarak (`NOT_SINIRI`; link için `LINK_SINIRI` 120).
-   - Sonra `dagitici.tetik_karari()` sorulur. İzin varsa `kos.py x-icerik` **beklenerek**
-     çalıştırılır, hemen ardından `dagitici.py` — zincir `twitter-icerik`'e geçsin diye.
+   - Önce `takim_sec()`: "youtube" geçen mesaj → `youtube-analiz`, link taşıyan geri kalan →
+     `x-icerik`, ikisi de değilse `None` → `ilgisiz`, yalnızca loglanır, hiçbir şey koşmaz.
+   - Takım bulunduysa → o takımın kuyruğuna `<önek>-<update_id>` maddesi yazılır
+     (`durum: bekliyor`; önek `x-` ya da `yt-`), notu
+     `telegram <tarih> · <link> · not: <patronun notu>` biçiminde — linksiz mesajda link parçası
+     hiç yazılmaz. Dış metin tek satıra indirilip **200 karaktere** kırpılır (`NOT_SINIRI`;
+     link için `LINK_SINIRI` 120). Dış metin veridir, talimat değil: yalnız desene bakılır.
+   - Sonra `dagitici.tetik_karari()` **o takım için** sorulur. İzin varsa `kos.py <takim>`
+     **beklenerek** çalıştırılır, hemen ardından `dagitici.py` — zinciri o kursun.
    - İzin yoksa `bekletildi` döner; madde kuyrukta kalır, sabah alınır.
-6. Her adımda patrona Telegram'dan tek satır haber gider: `▶️ link alındı…`,
+6. Her adımda patrona Telegram'dan tek satır haber gider: `▶️ istek alındı · <takim> kuyruğu <id>`,
    `✅ koşu bitti · <id>` (kuyruk durumu + bekçi kararı), ya da `⏸ … koşmadı: <sebep>`.
 
 Güvenlik notları: `TELEGRAM_BOT_TOKEN` açılışta log maskesine eklenir

@@ -8,7 +8,8 @@
 - **twitter-icerik** — doğrulanmış konudan X Article paketi kurar.
 - **bekçi** (`bin/bekci.py`) — Stop hook'ta her koşuyu denetler; red verirse ajan aynı oturumda düzeltir.
 - **dağıtıcı** (`bin/dagitici.py`) — zinciri kurar (x-icerik → twitter-icerik). Takımlar birbirine mesaj atmaz.
-- **dinleyici** (`bin/telegram_dinle.py`) — bota mesaj düştüğü an x-icerik koşar; olay tetikli, zamanlayıcısız.
+- **dinleyici** (`bin/telegram_dinle.py`) — bota mesaj düştüğü an ilgili takımı koşturur:
+  içinde "youtube" geçen mesaj → youtube-analiz, linkli geri kalan → x-icerik; olay tetikli, zamanlayıcısız.
 - **günlük** (`bin/gunluk.py`) — sabah 09:00 dağıtıcıyı koşturup rapor yazar, akşam 22:00 günü denetler.
   Zamanlayıcıyı `bin/zamanla.py --kur` kurar (launchd); raporlar `sirket-log/rapor/` altında, dışarı gitmez.
 

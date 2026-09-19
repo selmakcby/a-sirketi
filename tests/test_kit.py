@@ -39,7 +39,7 @@ butce_usd: 2
 """
 
 
-def sahte_kok(tmp, takimlar=("x-icerik", "twitter-icerik")):
+def sahte_kok(tmp, takimlar=("x-icerik", "twitter-icerik", "youtube-analiz")):
     """Geçici dizinde takimlar/<t>/{takim.md,durum.json,kosu/} olan minik bir repo."""
     kok = Path(tmp) / "kok"
     for ad in takimlar:
@@ -324,6 +324,14 @@ class BekciTesti(unittest.TestCase):
         red = {"karar": "red", "gerekce": "kaynaksız sayı: '8 bin abone'", "ihlal_edilen_kural": "2"}
         self.assertEqual(bekci.gecersiz_gerekceyi_ayikla(red)["karar"], "red")
 
+    def test_haiku_yedeginin_ayni_aile_notu_redi_gecersiz_kilmaz(self):
+        # 17 Eyl 2026: yedek bekçinin "[bekçi aynı aileden — uyarı]" öneki filtreye takılıp
+        # haklı bir içerik red'ini kabule çeviriyordu.
+        red = {"karar": "red",
+               "gerekce": f"[{bekci.AYNI_AILE_UYARISI}] tema toplamı 45, yorum 50 — sayılar tutarsız",
+               "ihlal_edilen_kural": "Kurallar — sayılar tam ve tutarlı olmalı"}
+        self.assertEqual(bekci.gecersiz_gerekceyi_ayikla(red)["karar"], "red")
+
 
 class BelgeTutarliligiTesti(unittest.TestCase):
     def test_env_ornegi_ile_readme_ayni_anahtarlari_sayiyor(self):
@@ -372,8 +380,10 @@ MESAI_DISI = datetime(2026, 9, 11, 3, 0).astimezone()
 
 
 def _mesaj(update_id, linkler=("https://x.com/a/status/1",), notu="bak şuna"):
+    """`telegram_oku._mesaj`'ın kopyası: `metin` tam metin (linkler dahil), `not` linksiz hâli."""
     return {"update_id": update_id, "zaman": "2026-09-11T10:00:00+03:00",
-            "metin": notu, "linkler": list(linkler), "not": notu}
+            "metin": " ".join([*linkler, notu]).strip(),
+            "linkler": list(linkler), "not": notu}
 
 
 def _guncelleme(update_id, chat_id, metin):
@@ -382,26 +392,63 @@ def _guncelleme(update_id, chat_id, metin):
 
 
 class TelegramDinleTesti(unittest.TestCase):
+    def test_takim_sec_youtube_kelimesi_gecen_mesaji_youtube_analize_yollar(self):
+        mesaj = _mesaj(1, linkler=(), notu="youtube analizi yap")
+        self.assertEqual(telegram_dinle.takim_sec(mesaj), "youtube-analiz")
+
+    def test_takim_sec_youtube_linkini_youtube_analize_yollar(self):
+        """Link de metnin parçası: 'youtube' geçtiği için x-icerik'e değil youtube-analiz'e gider."""
+        mesaj = _mesaj(2, linkler=("https://www.youtube.com/watch?v=abc",), notu="şuna bak")
+        self.assertEqual(telegram_dinle.takim_sec(mesaj), "youtube-analiz")
+
+    def test_takim_sec_x_linkini_x_icerige_yollar(self):
+        self.assertEqual(telegram_dinle.takim_sec(_mesaj(3)), "x-icerik")
+
+    def test_takim_sec_buyuk_kucuk_harf_ayirmaz(self):
+        for yazim in ("YouTube", "YOUTUBE", "youTube"):
+            with self.subTest(yazim=yazim):
+                mesaj = _mesaj(4, linkler=(), notu=f"{yazim} raporu çıkar")
+                self.assertEqual(telegram_dinle.takim_sec(mesaj), "youtube-analiz")
+
+    def test_takim_sec_linksiz_ve_youtubesuz_mesaja_takim_vermez(self):
+        self.assertIsNone(telegram_dinle.takim_sec(_mesaj(5, linkler=(), notu="selam")))
+
     def test_kuyruk_maddesi_takim_sozlesmesindeki_id_yi_kurar(self):
-        id_, notu = telegram_dinle.kuyruk_maddesi(_mesaj(42))
+        id_, notu = telegram_dinle.kuyruk_maddesi(_mesaj(42), telegram_dinle.TAKIM)
         self.assertEqual(id_, "x-42")
         self.assertIn("https://x.com/a/status/1", notu)
         self.assertIn("not: bak şuna", notu)
         self.assertIsNotNone(dagitici.zincir_esle(id_), "id zincire uymalı")
 
     def test_kuyruk_notu_dis_metni_tek_satira_indirip_kirpar(self):
-        _, notu = telegram_dinle.kuyruk_maddesi(_mesaj(7, notu="satır1\nsatır2 " + "u" * 500))
+        _, notu = telegram_dinle.kuyruk_maddesi(_mesaj(7, notu="satır1\nsatır2 " + "u" * 500),
+                                                telegram_dinle.TAKIM)
         self.assertNotIn("\n", notu)
         self.assertLessEqual(len(notu.split("not: ", 1)[1]), telegram_dinle.NOT_SINIRI + 1)
 
-    def test_linksiz_mesaj_kosturmaz_kuyruga_da_yazmaz(self):
+    def test_kuyruk_maddesi_youtube_icin_yt_oneki_kurar_ve_bos_parca_birakmaz(self):
+        id_, notu = telegram_dinle.kuyruk_maddesi(
+            _mesaj(43, linkler=(), notu="youtube analizi yap"), telegram_dinle.YT_TAKIM)
+        self.assertEqual(id_, "yt-43")
+        self.assertIn("not: youtube analizi yap", notu)
+        self.assertNotIn("·  ·", notu, "linksiz mesajda boş parça kalmamalı")
+        self.assertFalse(notu.rstrip().endswith("·"))
+
+    def test_yt_maddesi_dagiticinin_zincirine_takilmaz(self):
+        """`yt-` ile başlayan madde twitter-icerik'i tetiklemez — zincir deseni `^x-(.+)$`."""
+        self.assertIsNone(dagitici.zincir_esle("yt-43"))
+
+    def test_ilgisiz_mesaj_kosturmaz_kuyruga_da_yazmaz(self):
+        """Linksiz ve 'youtube' geçmeyen mesaj hiçbir takıma uymaz — yalnız loglanır."""
         with tempfile.TemporaryDirectory() as d:
             kok = sahte_kok(d)
             with mock.patch.object(telegram_dinle, "kostur") as sahte:
-                etiket, _ = telegram_dinle.isle_mesaj(kok, _mesaj(1, linkler=()), MESAI_ICI)
-            self.assertEqual(etiket, "linksiz")
+                etiket, _ = telegram_dinle.isle_mesaj(kok, _mesaj(1, linkler=(), notu="selam"),
+                                                      MESAI_ICI)
+            self.assertEqual(etiket, "ilgisiz")
             sahte.assert_not_called()
             self.assertEqual(ayar.durum_oku("x-icerik", kok).get("kuyruk"), [])
+            self.assertEqual(ayar.durum_oku("youtube-analiz", kok).get("kuyruk"), [])
 
     def test_mesai_icinde_link_kuyruga_yazilir_ve_hemen_kosar(self):
         with tempfile.TemporaryDirectory() as d:
@@ -409,9 +456,36 @@ class TelegramDinleTesti(unittest.TestCase):
             with mock.patch.object(telegram_dinle, "kostur") as sahte:
                 etiket, _ = telegram_dinle.isle_mesaj(kok, _mesaj(30760576), MESAI_ICI)
             self.assertEqual(etiket, "kostu")
-            sahte.assert_called_once_with(kok)
+            sahte.assert_called_once_with(kok, "x-icerik")
             kuyruk = ayar.durum_oku("x-icerik", kok)["kuyruk"]
             self.assertEqual([(o["id"], o["durum"]) for o in kuyruk], [("x-30760576", "bekliyor")])
+
+    def test_youtube_istegi_youtube_analizi_kosturur(self):
+        with tempfile.TemporaryDirectory() as d:
+            kok = sahte_kok(d)
+            mesaj = _mesaj(30760583, linkler=(), notu="youtube analizi yap")
+            with mock.patch.object(telegram_dinle, "kostur") as sahte:
+                etiket, sebep = telegram_dinle.isle_mesaj(kok, mesaj, MESAI_ICI)
+            self.assertEqual(etiket, "kostu")
+            sahte.assert_called_once_with(kok, "youtube-analiz")
+            self.assertIn("youtube-analiz/yt-30760583", sebep)
+            kuyruk = ayar.durum_oku("youtube-analiz", kok)["kuyruk"]
+            self.assertEqual([(o["id"], o["durum"]) for o in kuyruk],
+                             [("yt-30760583", "bekliyor")])
+            self.assertEqual(ayar.durum_oku("x-icerik", kok)["kuyruk"], [],
+                             "youtube isteği x-icerik kuyruğuna düşmemeli")
+
+    def test_mesai_disinda_youtube_istegi_kuyruga_yazilir_ama_kosmaz(self):
+        with tempfile.TemporaryDirectory() as d:
+            kok = sahte_kok(d)
+            mesaj = _mesaj(6, linkler=(), notu="youtube raporu")
+            with mock.patch.object(telegram_dinle, "kostur") as sahte:
+                etiket, sebep = telegram_dinle.isle_mesaj(kok, mesaj, MESAI_DISI)
+            self.assertEqual(etiket, "bekletildi")
+            self.assertIn("mesai dışı", sebep)
+            sahte.assert_not_called()
+            self.assertEqual([o["id"] for o in ayar.durum_oku("youtube-analiz", kok)["kuyruk"]],
+                             ["yt-6"])
 
     def test_mesai_disinda_kuyruga_yazilir_ama_kosmaz(self):
         with tempfile.TemporaryDirectory() as d:
@@ -454,6 +528,28 @@ class TelegramDinleTesti(unittest.TestCase):
             self.assertEqual(len(yazilan), 2)
             sayaclar = ayar.durum_oku("x-icerik", kok)["sayaclar"]
             self.assertEqual(sayaclar["telegram_son_update"], 12)
+
+    def test_tur_karisik_mesajlari_dogru_takimlara_yollar(self):
+        """X linki x-icerik'e, 'youtube' geçen mesaj youtube-analiz'e; sıra korunur."""
+        with tempfile.TemporaryDirectory() as d:
+            kok = sahte_kok(d)
+            guncellemeler = [_guncelleme(21, 99, "https://x.com/a/status/1"),
+                             _guncelleme(22, 99, "youtube analizi yap"),
+                             _guncelleme(23, 99, "selam")]
+            gidenler = []
+            # `tur` -> `isle_mesaj` saati kendi okur; testi duvar saatine bağlamamak için §4
+            # kararı sabitlenir. Karar mantığı zaten TavanTesti'nde sınanıyor.
+            with mock.patch.object(telegram_dinle.telegram_oku, "guncellemeleri_cek",
+                                   return_value=guncellemeler), \
+                 mock.patch.object(telegram_dinle.dagitici, "tetik_karari",
+                                   return_value=(True, "test")), \
+                 mock.patch.object(telegram_dinle, "kostur",
+                                   side_effect=lambda k, t: gidenler.append(t)):
+                telegram_dinle.tur(kok, "gizli-token", 99, collections.deque(), bekleme=0)
+            self.assertEqual(gidenler, ["x-icerik", "youtube-analiz"])
+            self.assertEqual([o["id"] for o in ayar.durum_oku("x-icerik", kok)["kuyruk"]], ["x-21"])
+            self.assertEqual([o["id"] for o in ayar.durum_oku("youtube-analiz", kok)["kuyruk"]],
+                             ["yt-22"])
 
     def test_token_yoksa_sessizce_sifirla_cikar(self):
         with mock.patch.object(ayar, "ortam_yukle", return_value={}), \

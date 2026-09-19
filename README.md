@@ -10,6 +10,11 @@ Bu bir iskelettir, bir ürün değil. Klonla, `.env`'i doldur, kendi takımları
 
 ![Üç ajan ve bekçi](docs/4-ajan.png)
 
+## Videolar
+
+- Bölüm 1 — [Şirketimde 13 Ajan Var, Maaş Ödemiyorum: Sıfırdan Kurulum](https://www.youtube.com/watch?v=7XhX8P0ebEU)
+- Bölüm 2 — [Bir Ajan Nasıl Uyanır ve Ne Kadar Harcar? Şirketimin İçi](https://youtu.be/OhnKe-L5-lU) — bu repodaki dosyalar tek tek açılıyor, YouTube ajanı Telegram'dan çalıştırılıyor, 40 cent'lik hata kamerada teşhis ediliyor.
+
 ## Üç takım
 
 | Takım | Anahtar | Akan şey |
@@ -68,6 +73,14 @@ sırayla başlar: `ANAYASA.md` → `sirket/AJAN-KIMLIGI.md` → `takimlar/<takim
 `youtube-analiz` aynı iskelette ayrı kulvarda döner: pazartesi sabahı `bin/gunluk.py --sabah`
 kuyruğa `yt-<hafta>` maddesini düşürür → Apify → `veri/*.json` → kaynaklı rapor.
 
+Aynı takımı **Telegram'dan da çağırabilirsin**: bota "youtube analizi yap" yazman yeter.
+Dinleyici gelen mesajı `takim_sec()` ile yönlendirir — içinde "youtube" geçen her mesaj
+(büyük/küçük harf farketmez, link olsun olmasın) `youtube-analiz` kuyruğuna `yt-<update_id>`
+maddesi düşürür ve mesai içindeysen pazartesiyi beklemeden hemen koşturur; takım o durumda
+veriyi tazeliğine bakmadan yeniden çeker ve raporu baştan yazar. "youtube" geçmeyen ama link
+taşıyan mesaj eskisi gibi `x-icerik`'e gider; ikisi de değilse hiçbir şey koşmaz. Ayrıntı:
+[docs/02-dongu.md](docs/02-dongu.md).
+
 ## Kurulum — 6 adım
 
 Komut komut ayrıntılı hâli: **[KURULUM.md](KURULUM.md)**
@@ -108,7 +121,7 @@ python3 bin/dagitici.py --kuru               # zinciri ve tetik kararlarını ba
 python3 bin/dagitici.py                      # zinciri kur, uygun takımları koştur
 python3 bin/bekci.py --dogrudan <takim> [kosu.md]   # hook dışından denetle, kararı JSON bas
 python3 bin/telegram_oku.py --chat-id-bul | --son 5 | --isle
-python3 bin/telegram_dinle.py [--bir-kez]    # olay tetiği: mesaj düştüğü an x-icerik koşar
+python3 bin/telegram_dinle.py [--bir-kez]    # olay tetiği: mesaj düştüğü an ilgili takım koşar
 python3 bin/gunluk.py --sabah [--kuru] | --aksam    # sabah dağıtıcı + rapor, akşam denetim
 python3 bin/zamanla.py --kuru | --kur | --durum | --kaldir   # launchd tetikleri (macOS)
 #   saatli tetik: macOS launchd · Linux cron (docs/02-dongu.md) · Windows WSL — kos.py POSIX fcntl kilidi kullanır
@@ -136,8 +149,9 @@ python3 -m unittest discover -s tests        # reponun kendi testleri
 - **Bekçi ayrı süreçte.** Üretenin kendi kendini onaylaması yasak. Denetim Stop hook'ta, ayrı süreçte,
   tercihen ayrı model ailesinde. İlk katman LLM'siz ön kontroldür: koşu kaydında anahtar, token ya da
   e-posta deseni varsa karar doğrudan `red`.
-- **Tetik saat değil, olay.** `x-icerik`'i başlatan şey bir zamanlayıcı değil, bota düşen mesaj
-  (`bin/telegram_dinle.py`). Saatli tetik yalnız sabah dağıtıcıyı ve akşam denetimi koşturur.
+- **Tetik saat değil, olay.** Takımı başlatan şey bir zamanlayıcı değil, bota düşen mesaj
+  (`bin/telegram_dinle.py`) — hangi takım olduğunu mesajın kendisi söyler. Saatli tetik yalnız
+  sabah dağıtıcıyı ve akşam denetimi koşturur.
 - **Tavan her yerde.** Para, süre, koşu sayısı ve mesai penceresi tek dosyada (`bin/ayar.py`);
   tavana çarpan koşu sessiz ölmez, `durum.json`'a yazar.
 - **Yayın insanda.** Şirket taslağa kadar gider, orada durur.

@@ -47,7 +47,7 @@ Yani **koşu kayıtları ve çıktılar public repoya girmez** — örnek olarak
 | `dagitici.py` | Zinciri kurar, tetik kararını verir, takımı başlatır | hayır |
 | `gunluk.py` | Sabah/akşam raporu, haftalık işi kuyruğa düşürür | hayır |
 | `zamanla.py` | launchd tetiklerini kurar/kaldırır | hayır |
-| `telegram_dinle.py` | Long-poll dinleyici — mesaj düştüğü an koşturur | hayır |
+| `telegram_dinle.py` | Long-poll dinleyici — mesaj düştüğü an ilgili takımı koşturur (`takim_sec`) | hayır |
 | `telegram_oku.py` | `getUpdates`, chat id bulma, `gelen/` yazma | hayır |
 | `agents_uret.py` | `takim.md` → `.claude/agents/<takim>.md` | hayır |
 | `tweet_cek.py` | Bir X linkinin metnini fxtwitter aynasından çeker | hayır |

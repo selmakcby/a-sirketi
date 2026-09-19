@@ -161,7 +161,10 @@ def gecersiz_gerekceyi_ayikla(karar):
     if karar.get("karar") != "red":
         return karar
     kural = str(karar.get("ihlal_edilen_kural") or "").strip()
-    if GECERSIZ_GEREKCE.search(karar.get("gerekce") or "") or kural in ("3", "4"):
+    # Haiku yedeğinin başa eklediği "[bekçi aynı aileden — uyarı]" notu filtreye takılmasın:
+    # not, red'in gerekçesi değil, bekçinin kimliğidir.
+    gerekce = (karar.get("gerekce") or "").replace(f"[{AYNI_AILE_UYARISI}] ", "", 1)
+    if GECERSIZ_GEREKCE.search(gerekce) or kural in ("3", "4"):
         return {"karar": "kabul", "ihlal_edilen_kural": None,
                 "gerekce": "(madde 3/4 gerekçeli red geçersiz sayıldı — sürücünün kuralı) "
                            + (karar.get("gerekce") or "")[:300]}

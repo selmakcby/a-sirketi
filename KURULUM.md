@@ -1,15 +1,31 @@
 # KURULUM — sıfırdan altı adım
 
+## Başlamadan önce
+
+Aşağıdakiler kurulu olmadan adım 1'e geçme. Hepsi ücretsiz; kurulumları toplam 15-20 dakika.
+
+- **macOS ya da Linux terminali.** Komutların tamamı terminalde çalışır.
+  Windows'taysan [WSL](https://learn.microsoft.com/windows/wsl/install) kur ve her şeyi WSL
+  içindeki Ubuntu'da yap — `bin/kos.py` koşu kilidini POSIX `fcntl` ile kurar, WSL'siz Windows'ta
+  çalışmaz. Adım 6'daki saatli tetik (launchd) yalnız macOS'tadır; Linux/WSL'de cron karşılığı
+  [docs/02-dongu.md](docs/02-dongu.md) içinde.
+- **Python 3.9+** — [python.org/downloads](https://www.python.org/downloads/).
+  `python3 --version` ile doğrula. Kod salt standart kütüphane; `pip install` yok.
+- **git** — [git-scm.com/downloads](https://git-scm.com/downloads). `git --version` ile doğrula.
+- **Claude Code kurulu ve giriş yapılmış** —
+  [docs.claude.com/en/docs/claude-code](https://docs.claude.com/en/docs/claude-code).
+  Koşuları çalıştıran şey odur. `claude --version` bir sürüm basmalı ve bir kez `claude` yazıp
+  hesabınla giriş yapmış olmalısın; giriş yapılmamış bir CLI'da her koşu ilk adımda ölür.
+- **Bir editör** — [VS Code](https://code.visualstudio.com/) önerilir. `.env`'i, `takim.md`
+  dosyalarını ve raporları elle okuyup düzelteceksin.
+- **Bir Telegram hesabı** — botu @BotFather'dan sen açacaksın (adım 1). Şirkete iş, telefonundan
+  bota yazdığın mesajla giriyor.
+- `gh` (GitHub CLI) — zorunlu değil; yalnızca kendi kopyanı GitHub'a açacaksan gerekir.
+
+---
+
 Repoyu klonluyorsun: betikler, yetenekler, üç takım ve Stop hook ayarı zaten yerinde. Yapacağın şey
 anahtarları koymak, iskeleti tanımak ve döngüyü bir kez kendi gözünle kapatmak.
-
-**Gerekenler**
-
-- `python3` (3.9+) — betiklerin tamamı standart kütüphane, `pip install` yok
-- [Claude Code](https://claude.com/claude-code) CLI: `claude` komutu PATH'te olmalı — koşuları o çalıştırır
-- `gh` (GitHub CLI) — yalnızca kendi kopyanı GitHub'a açacaksan gerekir
-- macOS — `bin/zamanla.py` launchd kullanır (adım 6). Diğer adımlar Linux'ta da çalışır;
-  Windows'ta WSL gerekir (`bin/kos.py` koşu kilidini POSIX `fcntl` ile kurar).
 
 ---
 
@@ -175,11 +191,15 @@ Gerçek bir koşunun kaydı ve çıktısı: [docs/ornek-kosu/](docs/ornek-kosu/)
 
 ```bash
 python3 bin/telegram_dinle.py --bir-kez     # tek tur — önce bunu dene
-python3 bin/telegram_dinle.py               # sonsuz long-poll: mesaj düştüğü an x-icerik koşar
+python3 bin/telegram_dinle.py               # sonsuz long-poll: mesaj düştüğü an ilgili takım koşar
 ```
 
 Dinleyici açıkken bota link attığın an koşu başlar; `--isle` yazmana gerek kalmaz. Mesai dışında
 gelen mesaj `gelen/` altına yazılır ve kuyruğa `bekliyor` düşer, koşu sabaha kalır.
+
+Hangi takımın koşacağını mesajın kendisi söyler: içinde "youtube" geçen bir mesaj (ör.
+"youtube analizi yap") `youtube-analiz`'i, link taşıyan geri kalan mesaj `x-icerik`'i
+koşturur. İkisi de değilse mesaj yalnızca loglanır.
 
 Saatli tetik sabah dağıtıcıyı koşturur, akşam günü denetler:
 
