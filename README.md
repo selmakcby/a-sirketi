@@ -2,6 +2,10 @@
 
 # A Şirketi
 
+<!-- yarkr:badges:start -->
+[![Indexed on Yarkr](https://api.yarkr.com/functions/v1/api/api/v1/badges/repos/selmakcby/a-sirketi/version.svg)](https://yarkr.com/arks/selmakcby/a-sirketi)
+<!-- yarkr:badges:end -->
+
 Üç Claude Code ajanı, bir bekçi, bir dağıtıcı — kapalı bir döngü. Telefonundan bota bir link atarsın;
 bir ajan iddiaları kaynağına kadar doğrular, zincir devralır, yayına hazır bir paket çıkar ve orada durur:
 **yayın düğmesi insanda.**
@@ -177,3 +181,37 @@ python3 -m unittest discover -s tests        # reponun kendi testleri
 ## Lisans
 
 MIT — bkz. [LICENSE](LICENSE).
+
+<!-- yarkr:install:start -->
+## Install with Yarkr
+
+This repo is indexed on [Yarkr](https://yarkr.com/arks/selmakcby/a-sirketi) as the ark [selmakcby/a-sirketi](https://yarkr.com/arks/selmakcby/a-sirketi), so its skills install into Claude Code, Codex, Cursor and other agent harnesses with one command.
+
+### CLI
+
+Install the whole ark, which Yarkr keeps equal to this repo:
+
+```bash
+npx yarkr-cli sync selmakcby/a-sirketi
+```
+
+Or add individual skills:
+
+```bash
+npx yarkr-cli add skill:selmakcby/a-sirketi/iddia-ayristirma-ve-kanit-defteri
+npx yarkr-cli add skill:selmakcby/a-sirketi/kaynak-dogrulama
+npx yarkr-cli add skill:selmakcby/a-sirketi/kaynak-kimlik-dogrulama
+```
+
+No Node.js? `curl -fsSL https://yarkr.com/install.sh | sh` (macOS, Linux) or `irm https://yarkr.com/install.ps1 | iex` (Windows PowerShell) installs `yarkr` as a standalone binary; then type `yarkr` in place of `npx yarkr-cli`.
+
+### MCP
+
+Connect your agent to the ark over MCP:
+
+```bash
+npx yarkr-cli mcp add selmakcby/a-sirketi
+```
+
+Or point any MCP client at `https://api.yarkr.com/functions/v1/api/mcp/o/selmakcby/a-sirketi`.
+<!-- yarkr:install:end -->
